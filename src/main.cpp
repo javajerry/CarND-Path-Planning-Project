@@ -160,6 +160,22 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 }
 
+// obtain laneId based car's d coorinate
+int getLane (double s_val)
+{
+  int car_lane = -1;
+  int lane_width = 4;
+
+  if ((s_val > 0 ) && (s_val < lane_width ))
+    car_lane = 0;
+  else if ((s_val > lane_width ) && (s_val < 2*lane_width ))
+    car_lane = 1;
+  else if((s_val > 2*lane_width ) && (s_val < 3*lane_width ))
+    car_lane = 2;
+
+  return car_lane;
+}
+
 int main() {
   uWS::Hub h;
 
@@ -174,7 +190,7 @@ int main() {
   int lane = 1;
 
   // reference velocity to the target
-  double ref_vel = 49.5;
+  double ref_vel = 5;
 
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
@@ -248,6 +264,13 @@ int main() {
 
             int prev_size = previous_path_x.size();
 
+            if ( prev_size > 0)
+            {
+              car_s = end_path_s;
+            }
+
+            bool too_close = false;
+
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             //Analyze sensor fusion data
             for (int i = 0; i < sensor_fusion.size(); ++i)
@@ -261,6 +284,36 @@ int main() {
               double vehicle_vy = vehicle[4];
               double vehicle_s = vehicle[5];
               double vehicle_d = vehicle[6];
+
+              //check for vehicle if its in our current lane
+              // checking in Fernet coordinates
+              if ( vehicle_d < (2+4*lane+2) && vehicle_d > (2+4*lane-2))
+              {
+                // velocity magintude
+                double check_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+                vehicle_s += ((double)prev_size*.02*check_speed);
+
+                // check for the gap with the car ahead. If distance is 
+                // less than 30 meter, reduce the speed
+                if ((vehicle_s > car_s) && ((vehicle_s - car_s)<30))
+                {
+                  //ref_vel = 29.5;  
+                  too_close = true;
+                  if ( lane > 0 )
+                  {
+                    lane = 0;
+                  }
+                }
+              }
+
+            }
+
+            if ( too_close )
+            {
+              ref_vel -= .224;
+            }
+            else if ( ref_vel < 49.5 ){
+              ref_vel += .224;
             }
 
             int closest_waypoint_index = NextWaypoint(car_x, car_y, car_yaw, map_waypoints_x, map_waypoints_y);
