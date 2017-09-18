@@ -161,20 +161,170 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 }
 
 // obtain laneId based car's d coorinate
-int getLane (double s_val)
+int getLane (double d_val)
 {
   int car_lane = -1;
   int lane_width = 4;
 
-  if ((s_val > 0 ) && (s_val < lane_width ))
+  if ((d_val > 0 ) && (d_val < lane_width ))
     car_lane = 0;
-  else if ((s_val > lane_width ) && (s_val < 2*lane_width ))
+  else if ((d_val > lane_width ) && (d_val < 2*lane_width ))
     car_lane = 1;
-  else if((s_val > 2*lane_width ) && (s_val < 3*lane_width ))
+  else if((d_val > 2*lane_width ) && (d_val < 3*lane_width ))
     car_lane = 2;
 
   return car_lane;
 }
+
+vector<int> countCarsinCloseRange(vector<vector<double>> sensor_data, double car_s)
+{
+  int leftAhead=0, leftBehind=0,  centerAhead=0, centerBehind=0, rightAhead=0, rightBehind=0;
+  for ( int i=0; i<sensor_data.size(); i++)
+  {
+    double s = sensor_data[i][5];
+    double d = sensor_data[i][6];
+    double collison_dist = 30;
+
+    if ( getLane(d) == 0)
+    {
+      if ( s - car_s < collison_dist ) 
+      {
+        leftAhead += 1;  
+      }
+      else if ( car_s - s < collison_dist ) 
+      {
+        leftBehind += 1;  
+      }      
+    }
+    else if ( getLane(d) == 1)
+    {
+      if ( s - car_s < collison_dist ) 
+      {
+        centerAhead += 1;  
+      }
+      else if ( car_s - s < collison_dist ) 
+      {
+        centerBehind += 1;  
+      }      
+    }
+    else if ( getLane(d) == 2)
+    {
+      if ( s - car_s < collison_dist ) 
+      {
+        rightAhead += 1;  
+      }
+      else if ( car_s - s < collison_dist ) 
+      {
+        rightBehind += 1;  
+      }      
+    }
+  }
+
+  return {leftAhead, leftBehind, centerAhead, centerBehind, rightAhead, rightBehind};
+}
+
+vector<double> analyzeSensorData(vector<vector<double>> sensor_data,  int prev_size, double car_s, double car_d)
+{
+  double left_ahead_closest = 99999;
+  double center_ahead_closest = 99999;
+  double right_ahead_closest = 99999;
+
+  double left_behind_closest = 99999;
+  double center_behind_closest = 99999;
+  double right_behind_closest = 99999;
+
+  //get current lane
+  int lane = getLane(car_d);
+
+  // each vector will 3 parameter, difference in distance, collision_ind[0,1] and buffer_ind
+  for ( int i=0; i<sensor_data.size(); i++)
+  {
+    double vx = sensor_data[i][3];
+    double vy = sensor_data[i][4];
+
+    double s = sensor_data[i][5];
+    double d = sensor_data[i][6];
+
+    double check_speed = sqrt(vx*vx + vy*vy);
+    s += ((double)prev_size*.02*check_speed);
+
+    double diff_ahead = s - car_s;
+    double diff_behind = car_s - s;
+
+
+    if ( lane == getLane(d) )
+    {
+      if ( (diff_ahead > 0) and (diff_ahead  < center_ahead_closest )) 
+      {
+        center_ahead_closest = diff_ahead;  
+      }
+      if ( (diff_behind > 0) and (diff_behind  < center_behind_closest )) 
+      {
+        center_behind_closest = diff_behind;  
+      }
+    }
+    else if ( lane>0 && (lane == getLane(d)-1))  //car on left
+    {
+      if ( (diff_ahead > 0) and (diff_ahead  < left_ahead_closest )) 
+      {
+        left_ahead_closest = diff_ahead;  
+      }
+      if ( (diff_behind > 0) and (diff_behind  < left_behind_closest )) 
+      {
+        left_behind_closest = diff_behind;  
+      }
+
+    }
+    else if ( lane == (getLane(d)+1)) // car on right
+    {
+      if ( (diff_ahead > 0) and (diff_ahead  < right_ahead_closest )) 
+      {
+        right_ahead_closest = diff_ahead;  
+      }
+      if ( (diff_behind > 0) and (diff_behind  < right_behind_closest )) 
+      {
+        right_behind_closest = diff_behind;  
+      }
+
+    }
+  }
+
+  return {left_ahead_closest, left_behind_closest, center_ahead_closest, center_behind_closest, right_ahead_closest, right_behind_closest};
+}
+
+double collision_cost(vector<double> data)
+{
+    
+  // Binary cost function which penalizes collisions.
+    
+  auto nearest = min_element(data.begin(), data.end());
+  // if less than 30 meters, collision detected
+  if (*nearest < 30.0) 
+  {
+    return 1.0;
+  }
+  else 
+  { 
+    return 0.0;
+  }
+}
+
+double logistic(double x)
+{  
+    //A function that returns a value between 0 and 1 for x in the 
+    //range [0, infinity] and -1 to 1 for x in the range [-infinity, infinity].
+
+    //Useful for cost functions.
+    return 2.0 / (1 + exp(-x)) - 1.0;
+}
+
+double buffer_cost(double nearest)
+{  
+    // Penalizes getting close to other vehicles.
+
+    return logistic(50 / nearest);
+}
+
 
 int main() {
   uWS::Hub h;
@@ -191,6 +341,9 @@ int main() {
 
   // reference velocity to the target
   double ref_vel = 5;
+
+  // CPU_cycles. Since my PC is slow so need faster for slowing down or acceleraing
+  double cpu_cycles = 2;
 
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
@@ -220,7 +373,7 @@ int main() {
   }
 
  
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &cpu_cycles](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -271,8 +424,98 @@ int main() {
 
             bool too_close = false;
 
+            lane = getLane(car_d);
+            cout << "Ego lane:" << lane << "   car_d: " << car_d << endl; 
+
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             //Analyze sensor fusion data
+            //vector<int> traffic = countCarsinCloseRange(sensor_fusion, car_s);
+            //cout << "Found Number of cars :" << sensor_fusion.size() << "| lA:lB:cA:cB:rA:rB " << traffic[0] << ":" << traffic[1] << ":" << traffic[2] << ":" << traffic[3] << ":" << traffic[4] << ":" << traffic[5] << endl;
+            for (int i = 0; i < sensor_fusion.size(); ++i)
+            {
+              auto vehicle = sensor_fusion[i];
+              cout << "vehicle:" << vehicle << endl;
+            }
+
+            vector<double> distance_data = analyzeSensorData(sensor_fusion, prev_size, car_s, car_d);
+            cout << "left Ahead Distance :" << distance_data[0] << " | Left Behind Distance " << distance_data[1] <<  endl;
+            cout << "center Ahead Distance :" << distance_data[2] << " | center Behind Distance " << distance_data[3] <<  endl;
+            cout << "right Ahead Distance :" << distance_data[4] << " | right Behind Distance " << distance_data[5] <<  endl;
+
+            if ( lane == 1) // center lane
+            {
+              double coll_cost = collision_cost({distance_data[2]});
+              cout << "collision cost : " << coll_cost << endl;
+              if ( coll_cost == 1)
+              {
+                  double coll_left_cost = collision_cost({distance_data[0],distance_data[1]});
+                  double coll_right_cost = collision_cost({distance_data[4],distance_data[5]});
+                  cout << "left coll cost : " << coll_left_cost << "  | right coll cost : " << coll_right_cost << endl;
+
+                  double left_buffer_forward = buffer_cost(distance_data[0]);
+                  double right_buffer_forward = buffer_cost(distance_data[4]);
+                  cout << "left up buffer : " << left_buffer_forward << "  | right up buffer : " << right_buffer_forward << endl;
+
+                  if ( (coll_left_cost < coll_right_cost) && (left_buffer_forward < right_buffer_forward))
+                  {
+                    lane = 0; //change lane to left
+                    cout << "change lane to left" << endl;
+                  }
+                  else if ((coll_left_cost > coll_right_cost) && (left_buffer_forward > right_buffer_forward))
+                  {
+                    lane = 2;
+                    cout << "change lane to right" << endl;
+                  }
+                  else {
+                    too_close = true;
+                    cout << "slow down" << endl;
+                  }
+
+              }  
+              
+            }
+            else if ( lane == 0 ) // ego car in left lane, check if can goto center lane
+            {
+              double coll_cost = collision_cost({distance_data[0]});
+              cout << "collision cost : " << coll_cost << endl;
+
+              if ( coll_cost == 1)
+              {
+                double coll_center_cost = collision_cost({distance_data[2],distance_data[3]});
+                if ( coll_center_cost == 1) // slow down in the current lane
+                {
+                  too_close = true;
+                  cout << "slow down" << endl;
+                }
+                else {
+                  lane = 1;
+                  cout << "change lane to center" << endl;
+                }
+              }
+            }
+            else if ( lane == 2) // ego car in left lane, check if can goto center lane
+            {
+              double coll_cost = collision_cost({distance_data[4]});
+              cout << "collision cost : " << coll_cost << endl;
+
+              if ( coll_cost == 1)
+              {
+                double coll_center_cost = collision_cost({distance_data[2],distance_data[3]});
+                if ( coll_center_cost == 1) // slow down in the current lane
+                {
+                  too_close = true;
+                  cout << "slow down" << endl;
+                }
+                else {
+                  lane = 1;
+                  cout << "change lane to center" << endl;
+                }
+              }
+
+            }
+
+
+            /*double closest = 999999;
             for (int i = 0; i < sensor_fusion.size(); ++i)
             {
               auto vehicle = sensor_fusion[i];
@@ -285,14 +528,18 @@ int main() {
               double vehicle_s = vehicle[5];
               double vehicle_d = vehicle[6];
 
+              // get LaneId
+              int vehicle_lane = getLane(vehicle_d);
+
+              // velocity magintude
+              double check_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
+              vehicle_s += ((double)prev_size*.02*check_speed);
+
               //check for vehicle if its in our current lane
               // checking in Fernet coordinates
-              if ( vehicle_d < (2+4*lane+2) && vehicle_d > (2+4*lane-2))
+              //if ( vehicle_d < (2+4*lane+2) && vehicle_d > (2+4*lane-2))
+              if ( lane == vehicle_lane)
               {
-                // velocity magintude
-                double check_speed = sqrt(vehicle_vx*vehicle_vx + vehicle_vy*vehicle_vy);
-                vehicle_s += ((double)prev_size*.02*check_speed);
-
                 // check for the gap with the car ahead. If distance is 
                 // less than 30 meter, reduce the speed
                 if ((vehicle_s > car_s) && ((vehicle_s - car_s)<30))
@@ -306,26 +553,20 @@ int main() {
                 }
               }
 
-            }
+            } */
 
             if ( too_close )
             {
-              ref_vel -= .224;
+              ref_vel -= .224 * cpu_cycles;
             }
             else if ( ref_vel < 49.5 ){
-              ref_vel += .224;
+              ref_vel += .224 * cpu_cycles;
+              if ( ref_vel > 49.5 )
+              {
+                ref_vel = 49.5;
+              }
             }
 
-            int closest_waypoint_index = NextWaypoint(car_x, car_y, car_yaw, map_waypoints_x, map_waypoints_y);
-            cout << "closest_waypoint_index : " << closest_waypoint_index << endl;
-
-            double next_waypoint_x = map_waypoints_x[closest_waypoint_index];
-            double next_waypoint_y = map_waypoints_y[closest_waypoint_index];
-            double next_waypoint_s = map_waypoints_s[closest_waypoint_index];
-            double next_waypoint_dx = map_waypoints_dx[closest_waypoint_index];
-            double next_waypoint_dy = map_waypoints_dy[closest_waypoint_index];
-
-            cout << "next_waypoint_dx : " << next_waypoint_dx << endl;
 
             vector<double> ptsx;
             vector<double> ptsy;
@@ -408,7 +649,20 @@ int main() {
               next_y_vals.push_back(previous_path_y[i]); 
             }
 
-            double target_x = 30;
+            int closest_waypoint_index = NextWaypoint(car_x, car_y, car_yaw, map_waypoints_x, map_waypoints_y);
+            cout << "closest_waypoint_index : " << closest_waypoint_index << endl;
+
+            double next_waypoint_x = map_waypoints_x[closest_waypoint_index];
+            double next_waypoint_y = map_waypoints_y[closest_waypoint_index];
+            double next_waypoint_s = map_waypoints_s[closest_waypoint_index];
+            double next_waypoint_dx = map_waypoints_dx[closest_waypoint_index];
+            double next_waypoint_dy = map_waypoints_dy[closest_waypoint_index];
+
+            cout << "next_waypoint_dx : " << next_waypoint_dx << endl;
+
+
+            //double target_x = 30;
+            double target_x = next_waypoint_x;
             double target_y = s(target_x);
 
             double target_dist = sqrt((target_x*target_x) + (target_y*target_y));
