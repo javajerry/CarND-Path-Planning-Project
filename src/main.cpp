@@ -223,6 +223,8 @@ vector<int> countCarsinCloseRange(vector<vector<double>> sensor_data, double car
   return {leftAhead, leftBehind, centerAhead, centerBehind, rightAhead, rightBehind};
 }
 
+// Analyze the sensor data and categorize into 6 parts and find the minimum distance between ego car and other cars
+// in each lane.
 vector<double> analyzeSensorData(vector<vector<double>> sensor_data,  int prev_size, double car_s, double car_d)
 {
   double left_ahead_closest = 99999;
@@ -442,6 +444,7 @@ int main() {
             cout << "center Ahead Distance :" << distance_data[2] << " | center Behind Distance " << distance_data[3] <<  endl;
             cout << "right Ahead Distance :" << distance_data[4] << " | right Behind Distance " << distance_data[5] <<  endl;
 
+            // decision making
             if ( lane == 1) // center lane
             {
               double coll_cost = collision_cost({distance_data[2]});
@@ -463,7 +466,7 @@ int main() {
                   }
                   else if ((coll_left_cost >= coll_right_cost) && (left_buffer_forward > right_buffer_forward))
                   {
-                    lane = 2;
+                    lane = 2; // change lane to right
                     cout << "change lane to right" << endl;
                   }
                   else {
@@ -571,7 +574,7 @@ int main() {
                 ref_vel += .224 * cpu_cycles;
               }
 
-              
+              // avoid max speed exceeded
               if ( ref_vel > 49.5 )
               {
                 ref_vel = 49.5;
