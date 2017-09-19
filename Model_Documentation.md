@@ -36,6 +36,11 @@ After the sensor data is categorized, then the decision is made based on the lan
 <br>
 <h2>Trajectory Generation</h2>
 Pretty much followed the code from Walkthru video. We will collect 5 points (X,Y) and use spline algorithm. Spline algorithm is a fine alternative to Jerk Minimizing trajectory. First two points comes from the previous path returned by the simulator. Last two points from the previous path are considered. Next step to get global map corodinates 30 meters, 60 meters and 90 meters ahead of the ego car. These 5 (X,) points are fed to the spline function which determines the smooth curve path between the ego car position and the target distance. For target distance, next_waypoint method is utilized. X coordinate is fed to spline function to get Y cooridnate. Now we know the distance between ego position and target position by applying the linear path. For smoothing purpose ( which in turn helps in avoiding the jerks during the lane change), distance is  divided by the current velcity of the ego car to give the N steps. For each N step, new X,Y coordinate is calulated and added to the previous path. This new path is fed to the simulator which is displayed as green color and guide the car to move. 
+<br>
+<h2>Improvements for the future</h2>
+My Mac is slow and I observed slow response-reaction between the code and the simulator. I had to introduce the cpu_cycles to multiply with 2.24 for the faster response acceleration and deacceleration. It did cause Max Jerk Exceed when the simulator started. So I had to introudce reduced velocity increment till car's velocity reaches 4mph.
+<br>
+If you look at the lane change demo1 at 1m15s marker, ego car was making lane change to center. Car ahead is changed to center but my car immedately changed lane to the right to avoid the collision. Though the code worked but that maneuver was quite dangerous. Need behavior code here, if car ahead performed lane change at the same time, ego car should cancel the lane change and continue in the same lane.
 
 
 
