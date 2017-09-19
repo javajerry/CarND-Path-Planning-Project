@@ -1,5 +1,8 @@
 Though the project is interesting and challenging, I started with the starter code to see how car moves. It was
 after watching the Walkthrough and Q&A video, it helped me to understand better and code the project.
+<br>
+<a href="https://www.youtube.com/watch?v=PgHvrfcToYA">Project Demonstration Video</a>
+<br>
 <br>Below are the steps for plotting the trajectory which included avoiding collisions, lane changing, staying within speed limit of 50mph, avoiding max jerk. I pretty much followed the code in the Walkthrough video.
 <br>
 <h2> Determine the lane position</h2>
@@ -12,4 +15,15 @@ Code starts with determining the lane number of ego car using car_d, which is di
 The sensor_fusion variable contains all the information about the cars on the right-hand side of the road. For each car it provides id, global map coordinates, velocity component and Fernet coordinates. For analyzing the sensor fusion data, I relied on Fernet coordinates. Since its 3 lanes, I divided it into 6 categories 
 <li> Left Ahead </li>
 <li> Left Behind </li>
+<li> Center Ahead </li>
+<li> Center Behind </li>
+<li> Right Ahead </li>
+<li> Right Behind </li>
+The code will go thru the sensor fusion data list and tried to find the minimum distance between ego car and car in the traffic for each category. These categories will help further in determining possible two main actions - collision ahead, perform lane change OR collision ahead, slow down the car. 
+<br>
+After the sensor data is categorized, then the decision is made based on the lane position of the car. For example, if car is the left or right lane, it has to perform lane change, then the car has to move to the center lane. If the car is in the center lane and code has to figure which lane out of left and right lanes, is the best to move to. For the decision making, I used the cost functions which are similar to the python code for Polynomial Trajectory Generation. I used Cost function for collision, lane buffer and logistic ( which returns the value between 0 and 1).
+<h2>Decision Making<h2>
+1> If ego car is the center lane, check for the collision cost. If car ahead is less than 30 meters then cost is 1 else 0. Since ego car is in center lane, it can go either in left or right lane. Before it can perform the lane change, it will check for collision cost between left ahead, left behind and right ahead , right behind. Cost will pick the minimum of the ahead and behind value and check if its less than 30 meters or not. It will also check for the lane buffer, make sure it has 50 meters of the buffer to perfrom the safe lane change and avoid the collison with the car ahead or behind. It uses logistic function to determine whether goto left or right lane. Bigger the lane buffer, lower will be the cost and safe to change the lane.
+<br>
+
 
