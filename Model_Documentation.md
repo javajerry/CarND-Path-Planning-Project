@@ -40,7 +40,7 @@ Pretty much followed the code from Walkthru video. We will collect 5 points (X,Y
 <h2>Improvements for the future</h2>
 My Mac is slow and I observed slow response-reaction between the code and the simulator. I had to introduce the cpu_cycles to multiply with 2.24 for the faster response acceleration and deacceleration. It did cause Max Jerk Exceed when the simulator started. So I had to introudce reduced velocity increment till car's velocity reaches 4mph.
 <br>
-If you look at the lane change demo1 at 1m15s marker, ego car was making lane change to center. Car ahead is changed to center but my car immedately changed lane to the right to avoid the collision. Though the code worked but that maneuver was quite dangerous. Need behavior code here, if car ahead performed lane change at the same time, ego car should cancel the lane change and continue in the same lane.
+Thinking of a scenario which I didnt run into during my testing. If ego car in the left lane and there's a car ahead about 30 meters. My guess code will make ego car change lane to center. Car ahead also decided to change to the center at the same time, I am assuming code can handle that scenario and avoid the collision.  
 
 
 
