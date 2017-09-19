@@ -41,6 +41,7 @@ Pretty much followed the code from Walkthru video. We will collect 5 points (X,Y
 My Mac is slow and I observed slow response-reaction between the code and the simulator. I had to introduce the cpu_cycles to multiply with 2.24 for the faster response acceleration and deacceleration. It did cause Max Jerk Exceed when the simulator started. So I had to introudce reduced velocity increment till car's velocity reaches 4mph.
 <br>
 Thinking of a scenario which I didnt run into during my testing. If ego car in the left lane and there's a car ahead about 30 meters. My guess code will make ego car change lane to center. Car ahead also decided to change to the center at the same time, I am assuming code can handle that scenario and avoid the collision.  
+<br> My car stopped after completing one loop (4.25 miles), I need to figured how to recycle the waypoints.
 
 
 
