@@ -263,7 +263,7 @@ vector<double> analyzeSensorData(vector<vector<double>> sensor_data,  int prev_s
         center_behind_closest = diff_behind;  
       }
     }
-    else if ( lane>0 && (lane == getLane(d)-1))  //car on left
+    else if ( lane>0 && (lane == getLane(d)+1))  //car on left
     {
       if ( (diff_ahead > 0) and (diff_ahead  < left_ahead_closest )) 
       {
@@ -275,7 +275,7 @@ vector<double> analyzeSensorData(vector<vector<double>> sensor_data,  int prev_s
       }
 
     }
-    else if ( lane == (getLane(d)+1)) // car on right
+    else if ( lane == (getLane(d)-1)) // car on right
     {
       if ( (diff_ahead > 0) and (diff_ahead  < right_ahead_closest )) 
       {
@@ -456,12 +456,12 @@ int main() {
                   double right_buffer_forward = buffer_cost(distance_data[4]);
                   cout << "left up buffer : " << left_buffer_forward << "  | right up buffer : " << right_buffer_forward << endl;
 
-                  if ( (coll_left_cost < coll_right_cost) && (left_buffer_forward < right_buffer_forward))
+                  if ( (coll_left_cost <= coll_right_cost) && (left_buffer_forward < right_buffer_forward))
                   {
                     lane = 0; //change lane to left
                     cout << "change lane to left" << endl;
                   }
-                  else if ((coll_left_cost > coll_right_cost) && (left_buffer_forward > right_buffer_forward))
+                  else if ((coll_left_cost >= coll_right_cost) && (left_buffer_forward > right_buffer_forward))
                   {
                     lane = 2;
                     cout << "change lane to right" << endl;
@@ -476,12 +476,12 @@ int main() {
             }
             else if ( lane == 0 ) // ego car in left lane, check if can goto center lane
             {
-              double coll_cost = collision_cost({distance_data[0]});
+              double coll_cost = collision_cost({distance_data[2]});
               cout << "collision cost : " << coll_cost << endl;
 
               if ( coll_cost == 1)
               {
-                double coll_center_cost = collision_cost({distance_data[2],distance_data[3]});
+                double coll_center_cost = collision_cost({distance_data[4],distance_data[5]});
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
                   too_close = true;
@@ -495,12 +495,12 @@ int main() {
             }
             else if ( lane == 2) // ego car in left lane, check if can goto center lane
             {
-              double coll_cost = collision_cost({distance_data[4]});
+              double coll_cost = collision_cost({distance_data[2]});
               cout << "collision cost : " << coll_cost << endl;
 
               if ( coll_cost == 1)
               {
-                double coll_center_cost = collision_cost({distance_data[2],distance_data[3]});
+                double coll_center_cost = collision_cost({distance_data[0],distance_data[1]});
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
                   too_close = true;
@@ -560,11 +560,23 @@ int main() {
               ref_vel -= .224 * cpu_cycles;
             }
             else if ( ref_vel < 49.5 ){
-              ref_vel += .224 * cpu_cycles;
+
+              if ( ref_vel > 0 and ref_vel < 4)
+              {
+                // to avoid max jerk warning when the simulator starts
+                ref_vel += .224 ;
+              }
+              else
+              {
+                ref_vel += .224 * cpu_cycles;
+              }
+
+              
               if ( ref_vel > 49.5 )
               {
                 ref_vel = 49.5;
               }
+
             }
 
 
