@@ -1,8 +1,12 @@
 Though the project is interesting and challenging, I started with the starter code to see how car moves. It was
 after watching the Walkthrough and Q&A video, it helped me to understand better and code the project.
 <br>
-<a href="https://www.youtube.com/watch?v=PgHvrfcToYA">Project Demonstration Video</a>
+<a href="https://www.youtube.com/watch?v=PgHvrfcToYA">Complete Project Demonstration Video</a>
 <br>
+<a href="https://youtu.be/PgHvrfcToYA?t=1m14s">Lane Change Demo 1 (at 1m14s)</a>
+<br>
+<a href="https://youtu.be/PgHvrfcToYA?t=3m30s">Lane Change Demo 2 (at 3m30s)</a>
+
 <br>Below are the steps for plotting the trajectory which included avoiding collisions, lane changing, staying within speed limit of 50mph, avoiding max jerk. I pretty much followed the code in the Walkthrough video.
 <br>
 <h2> Determine the lane position</h2>
