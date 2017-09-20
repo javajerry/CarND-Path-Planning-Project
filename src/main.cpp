@@ -23,6 +23,9 @@ double rad2deg(double x) { return x * 180 / pi(); }
 //reset the speed 
 bool reset_terminal;
 
+// maximum velocity
+double MAX_VELOCITY = 49.5;
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -297,6 +300,78 @@ vector<double> analyzeSensorData(vector<vector<double>> sensor_data,  int prev_s
   return {left_ahead_closest, left_behind_closest, center_ahead_closest, center_behind_closest, right_ahead_closest, right_behind_closest};
 }
 
+// Analyze the sensor data and categorize into 6 parts and find the minimum distance between ego car and other cars
+// in each lane.
+vector<double> averageLaneSpeed(vector<vector<double>> sensor_data,  int prev_size)
+{
+	double left_lane_speed = 0;
+	double center_lane_speed = 0;
+	double right_lane_speed = 0;
+
+  	double left_cars_count = 0;
+  	double center_cars_count = 0;
+  	double right_cars_count = 0;
+
+
+  	// each vector will 3 parameter, difference in distance, collision_ind[0,1] and buffer_ind
+  	for ( int i=0; i<sensor_data.size(); i++)
+  	{
+    	double vx = sensor_data[i][3];
+    	double vy = sensor_data[i][4];
+    	double d = sensor_data[i][6];
+
+    	double check_speed = sqrt(vx*vx + vy*vy);
+
+    	int lane = getLane(d);
+
+    	if ( lane ==  0 ) //left lane
+    	{
+    		left_lane_speed += check_speed;
+    		left_cars_count += 1;
+    	}
+    	else if ( lane == 1 )  //middle lane
+    	{
+    		center_lane_speed += check_speed;
+    		center_cars_count += 1;
+    	}
+    	else if ( lane == 2) // right lane
+    	{
+    		right_lane_speed += check_speed;
+    		right_cars_count += 1;
+    	}
+
+  	}
+
+	if ( left_cars_count > 0 )
+    {
+    	left_lane_speed = left_lane_speed / left_cars_count;
+    }
+    else
+    {
+    	left_lane_speed = MAX_VELOCITY;
+    }
+
+    if ( center_cars_count > 0 )
+    {
+    	center_lane_speed = center_lane_speed / center_cars_count;
+    }
+    else
+    {
+    	center_lane_speed = MAX_VELOCITY;
+    }
+
+    if ( right_cars_count > 0 )
+    {
+    	right_lane_speed = right_lane_speed / right_cars_count;
+    }
+    else
+    {
+    	right_lane_speed = MAX_VELOCITY;
+    }
+
+  return {left_lane_speed, center_lane_speed, right_lane_speed};
+}
+
 double collision_cost(vector<double> data)
 {
     
@@ -328,7 +403,16 @@ double buffer_cost(vector<double> data)
     // Penalizes getting close to other vehicles.
 	auto nearest = min_element(data.begin(), data.end());
 
-    return logistic(50 / *nearest);
+    //return logistic(50 / *nearest);
+     // if less than 30 meters, collision detected
+  	if (*nearest < 40.0) 
+  	{
+    	return 1.0;
+  	}
+  	else 
+  	{ 
+    	return 0.0;
+  	}
 }
 
 
@@ -437,6 +521,8 @@ int main() {
 
             bool too_close = false;
 
+            double avg_speed = 0;
+
             lane = getLane(car_d);
             cout << "Ego lane:" << lane << "   car_d: " << car_d << endl; 
 
@@ -451,6 +537,8 @@ int main() {
             }
 
             vector<double> distance_data = analyzeSensorData(sensor_fusion, prev_size, car_s, car_d);
+            vector<double> lanes_avg_speed = averageLaneSpeed(sensor_fusion, prev_size);
+            
             cout << "left Ahead Distance :" << distance_data[0] << " | Left Behind Distance " << distance_data[1] <<  endl;
             cout << "center Ahead Distance :" << distance_data[2] << " | center Behind Distance " << distance_data[3] <<  endl;
             cout << "right Ahead Distance :" << distance_data[4] << " | right Behind Distance " << distance_data[5] <<  endl;
@@ -458,43 +546,67 @@ int main() {
             // decision making
             if ( lane == 1) // center lane
             {
-              double coll_cost = collision_cost({distance_data[2]});
-              cout << "collision cost : " << coll_cost << endl;
-              if ( coll_cost == 1)
-              {
-                  double coll_left_cost = collision_cost({distance_data[0],distance_data[1]});
-                  double coll_right_cost = collision_cost({distance_data[4],distance_data[5]});
-                  cout << "left coll cost : " << coll_left_cost << "  | right coll cost : " << coll_right_cost << endl;
+            	double coll_ahead_cost = collision_cost({distance_data[2]});
+              	cout << "collision cost : " << coll_ahead_cost << endl;
+              	// check if collision detected in same lane ahead as well as in 
+              	// left and right lane  
+              	double coll_left_cost = collision_cost({distance_data[0],distance_data[1]});
+              	double coll_right_cost = collision_cost({distance_data[4],distance_data[5]});
+              	cout << "left coll cost : " << coll_left_cost << "  | right coll cost : " << coll_right_cost << endl;
 
-                  if ( (coll_left_cost == 1.0) && (coll_right_cost == 1))
-                  {
-                    too_close = true;
-                    cout << "slow down" << endl;
-                  }
-                  else 
-                  {
-                  	double left_buffer = buffer_cost({distance_data[0],distance_data[1]});
-                  	double right_buffer = buffer_cost({distance_data[4],distance_data[5]});
-                  	cout << "left up buffer : " << left_buffer << "  | right up buffer : " << right_buffer << endl;
-
-                  	double left_cost = coll_left_cost + left_buffer;
-					double right_cost = coll_right_cost + right_buffer;
-
-					if ( left_cost < right_cost)
-					{
-	                    lane = 0; //change lane to left
-	                    cout << "change lane to left" << endl;
-					}
-					else
-					{
-						lane = 2; // change lane to right
-                    	cout << "change lane to right" << endl;
-					}					
-
-                  }
-
-              }  
+              	double coll_cost = coll_ahead_cost + coll_left_cost + coll_right_cost;
+			  	cout << "** total collision cost : " << coll_cost << endl;
               
+              	if ( coll_cost == 3 ) // slow down, surrounded by cars in all lanes
+              	{
+                	too_close = true;
+                	avg_speed = lanes_avg_speed[1]; 
+                	cout << "slow down" << endl;
+              	}
+              	else if ( coll_cost >= 1 and coll_cost < 3) //check for possible lane change
+              	{
+              		if ( coll_ahead_cost == 1.0 && coll_left_cost == 0.0 && coll_right_cost == 1.0)
+              		{
+              			double left_buffer = buffer_cost({distance_data[0],distance_data[1]});
+              			cout << "left up buffer : " << left_buffer << endl;
+
+						if ( left_buffer == 0.0 )
+						{
+                    		lane = 0; //change lane to left
+                    		cout << "change lane to left" << endl;
+						}
+						else
+						{
+							too_close = true;
+							avg_speed = lanes_avg_speed[1];
+        		        	cout << "slow down" << endl;
+						}
+					}					
+              		else if ( coll_ahead_cost == 1.0 && coll_left_cost == 1.0 && coll_right_cost == 0.0)
+              		{
+              			//check for right lane
+              			double right_buffer = buffer_cost({distance_data[4],distance_data[5]});
+              			cout <<  "right up buffer : " << right_buffer << endl;
+
+              			if ( right_buffer == 0)
+              			{
+							lane = 2; // change lane to right
+                			cout << "change lane to right" << endl;
+              			}
+              			else
+              			{
+		                	too_close = true;
+		                	avg_speed = lanes_avg_speed[1];
+        		        	cout << "slow down" << endl;
+              			}
+              		}
+              		else if (coll_ahead_cost == 1 && coll_left_cost == 0.0 && coll_right_cost == 0.0) {
+              			// give priority to change to left lane
+              			lane = 0;
+              			cout << "change lane to left" << endl;
+              		}
+
+				}              
             }
             else if ( lane == 0 ) // ego car in left lane, check if can goto center lane
             {
@@ -508,6 +620,7 @@ int main() {
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
                   too_close = true;
+                  avg_speed = lanes_avg_speed[0];
                   cout << "slow down" << endl;
                 }
                 else {
@@ -528,6 +641,7 @@ int main() {
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
                   too_close = true;
+                  avg_speed = lanes_avg_speed[2];
                   cout << "slow down" << endl;
                 }
                 else {
@@ -581,11 +695,8 @@ int main() {
 
             if ( too_close )
             {
-              ref_vel -= .224 * cpu_cycles;
-              if ( ref_vel < 25.0)
-              {
-              	ref_vel = 25;
-              }
+            	if ( ref_vel > avg_speed )
+              		ref_vel -= .224 * cpu_cycles;
             }
             else if ( ref_vel < 49.5 ){
 
@@ -600,9 +711,9 @@ int main() {
               }
 
               // avoid max speed exceeded
-              if ( ref_vel > 49.5 )
+              if ( ref_vel > MAX_VELOCITY )
               {
-                ref_vel = 49.5;
+                ref_vel = MAX_VELOCITY;
               }
 
             }
