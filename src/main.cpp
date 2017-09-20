@@ -20,6 +20,9 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+//reset the speed 
+bool reset_terminal;
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -418,6 +421,13 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+          	// if simulator is stopped and started again, reset the velocity
+          	if ( reset_terminal)
+          	{
+          		ref_vel = 1;
+          		reset_terminal = false;
+          	}
+
             int prev_size = previous_path_x.size();
 
             if ( prev_size > 0)
@@ -770,6 +780,7 @@ int main() {
 
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
     std::cout << "Connected!!!" << std::endl;
+    reset_terminal = true;
   });
 
   h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
