@@ -320,11 +320,12 @@ double logistic(double x)
     return 2.0 / (1 + exp(-x)) - 1.0;
 }
 
-double buffer_cost(double nearest)
+double buffer_cost(vector<double> data)
 {  
     // Penalizes getting close to other vehicles.
+	auto nearest = min_element(data.begin(), data.end());
 
-    return logistic(50 / nearest);
+    return logistic(50 / *nearest);
 }
 
 
@@ -342,10 +343,10 @@ int main() {
   int lane = 1;
 
   // reference velocity to the target
-  double ref_vel = 5;
+  double ref_vel = 0;
 
   // CPU_cycles. Since my PC is slow so need faster for slowing down or acceleraing
-  double cpu_cycles = 2;
+  double cpu_cycles = 3;
 
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
@@ -455,23 +456,31 @@ int main() {
                   double coll_right_cost = collision_cost({distance_data[4],distance_data[5]});
                   cout << "left coll cost : " << coll_left_cost << "  | right coll cost : " << coll_right_cost << endl;
 
-                  double left_buffer_forward = buffer_cost(distance_data[0]);
-                  double right_buffer_forward = buffer_cost(distance_data[4]);
-                  cout << "left up buffer : " << left_buffer_forward << "  | right up buffer : " << right_buffer_forward << endl;
-
-                  if ( (coll_left_cost <= coll_right_cost) && (left_buffer_forward < right_buffer_forward))
+                  if ( (coll_left_cost == 1.0) && (coll_right_cost == 1))
                   {
-                    lane = 0; //change lane to left
-                    cout << "change lane to left" << endl;
-                  }
-                  else if ((coll_left_cost >= coll_right_cost) && (left_buffer_forward > right_buffer_forward))
-                  {
-                    lane = 2; // change lane to right
-                    cout << "change lane to right" << endl;
-                  }
-                  else {
                     too_close = true;
                     cout << "slow down" << endl;
+                  }
+                  else 
+                  {
+                  	double left_buffer = buffer_cost({distance_data[0],distance_data[1]});
+                  	double right_buffer = buffer_cost({distance_data[4],distance_data[5]});
+                  	cout << "left up buffer : " << left_buffer << "  | right up buffer : " << right_buffer << endl;
+
+                  	double left_cost = coll_left_cost + left_buffer;
+					double right_cost = coll_right_cost + right_buffer;
+
+					if ( left_cost < right_cost)
+					{
+	                    lane = 0; //change lane to left
+	                    cout << "change lane to left" << endl;
+					}
+					else
+					{
+						lane = 2; // change lane to right
+                    	cout << "change lane to right" << endl;
+					}					
+
                   }
 
               }  
@@ -484,6 +493,7 @@ int main() {
 
               if ( coll_cost == 1)
               {
+              	// check right side
                 double coll_center_cost = collision_cost({distance_data[4],distance_data[5]});
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
@@ -503,6 +513,7 @@ int main() {
 
               if ( coll_cost == 1)
               {
+              	// check left side
                 double coll_center_cost = collision_cost({distance_data[0],distance_data[1]});
                 if ( coll_center_cost == 1) // slow down in the current lane
                 {
@@ -561,6 +572,10 @@ int main() {
             if ( too_close )
             {
               ref_vel -= .224 * cpu_cycles;
+              if ( ref_vel < 25.0)
+              {
+              	ref_vel = 25;
+              }
             }
             else if ( ref_vel < 49.5 ){
 
@@ -620,9 +635,9 @@ int main() {
 
             }
 
-            vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp0 = getXY(car_s + 30, double(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s + 60, double(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s + 90, double(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             ptsx.push_back(next_wp0[0]);
             ptsx.push_back(next_wp1[0]);
@@ -676,8 +691,8 @@ int main() {
             cout << "next_waypoint_dx : " << next_waypoint_dx << endl;
 
 
-            //double target_x = 30;
-            double target_x = next_waypoint_x;
+            double target_x = 30;
+            //double target_x = next_waypoint_x;
             double target_y = s(target_x);
 
             double target_dist = sqrt((target_x*target_x) + (target_y*target_y));
